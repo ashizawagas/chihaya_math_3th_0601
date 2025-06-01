@@ -173,68 +173,123 @@
       left: 10px;
       background-color: rgba(255, 255, 255, 0.9);
       border-radius: 10px;
-      padding: 10px;
-      max-width: 300px;
+      padding: 15px;
+      max-width: 350px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
       z-index: 5;
     }
     
     .collection-title {
-      font-size: 14px;
+      font-size: 16px;
       font-weight: bold;
-      margin-bottom: 5px;
+      margin-bottom: 10px;
       color: #333;
     }
     
     .collected-characters {
       display: flex;
       flex-wrap: wrap;
-      gap: 5px;
+      gap: 8px;
     }
     
     .collected-character {
-      font-size: 24px;
-      padding: 5px;
-      border-radius: 5px;
+      font-size: 32px;
+      padding: 8px;
+      border-radius: 8px;
       background-color: #f0f8ff;
-      border: 2px solid #4CAF50;
+      border: 3px solid #4CAF50;
       animation: newCharacterAnimation 2s ease-in-out;
+      position: relative;
+      transition: transform 0.3s ease;
+    }
+    
+    .collected-character:hover {
+      transform: scale(1.2);
+    }
+    
+    .collected-character::after {
+      content: attr(data-level);
+      position: absolute;
+      bottom: -5px;
+      right: -5px;
+      background-color: #ff6b6b;
+      color: white;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
     }
     
     @keyframes newCharacterAnimation {
       0% { transform: scale(0) rotate(0deg); opacity: 0; }
-      50% { transform: scale(1.5) rotate(180deg); opacity: 1; }
+      50% { transform: scale(1.5) rotate(180deg); opacity: 1; box-shadow: 0 0 20px gold; }
       100% { transform: scale(1) rotate(360deg); opacity: 1; }
     }
     
     /* ランキング表示 */
     .ranking-section {
       margin-top: 20px;
-      padding: 15px;
+      padding: 20px;
       background-color: #fff3cd;
       border-radius: 10px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
     
     .ranking-title {
-      font-size: 22px;
+      font-size: 24px;
       color: #856404;
-      margin-bottom: 10px;
+      margin-bottom: 15px;
       font-weight: bold;
     }
     
     .ranking-item {
-      margin: 5px 0;
-      padding: 8px;
+      margin: 8px 0;
+      padding: 12px;
       background-color: white;
-      border-radius: 5px;
-      font-size: 16px;
+      border-radius: 8px;
+      font-size: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
     
     .current-rank {
       background-color: #d4edda !important;
-      border: 2px solid #28a745;
+      border: 3px solid #28a745;
       font-weight: bold;
+      animation: highlightRank 2s ease-in-out infinite;
+    }
+    
+    @keyframes highlightRank {
+      0%, 100% { box-shadow: 0 0 5px #28a745; }
+      50% { box-shadow: 0 0 15px #28a745; }
+    }
+
+    .level-up-message {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: rgba(255, 215, 0, 0.95);
+      padding: 30px;
+      border-radius: 15px;
+      font-size: 24px;
+      font-weight: bold;
+      color: #8B4513;
+      z-index: 100;
+      animation: levelUpMessage 3s ease-in-out;
+      box-shadow: 0 0 30px gold;
+    }
+
+    @keyframes levelUpMessage {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0); }
+      20% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+      80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
     }
   </style>
 </head>
@@ -274,7 +329,7 @@
     
     <!-- キャラクターコレクション -->
     <div class="character-collection" id="characterCollection" style="display:none;">
-      <div class="collection-title">🎁 ゲットしたモンスター</div>
+      <div class="collection-title">🎁 ゲットしたモンスター (<span id="monsterCount">0</span>体)</div>
       <div class="collected-characters" id="collectedCharacters"></div>
     </div>
   </div>
@@ -285,12 +340,13 @@
       <div><strong>名前:</strong> <span id="displayName"></span></div>
       <div><strong>学年:</strong> 3年生</div>
       <div><strong>正解数:</strong> <span id="finalScore">0</span></div>
+      <div><strong>到達レベル:</strong> <span id="finalLevel">1</span></div>
       <div><strong>評価:</strong> <span id="rank">---</span></div>
     </div>
     
     <!-- ランキング表示 -->
     <div class="ranking-section">
-      <div class="ranking-title">🏅 ランキング</div>
+      <div class="ranking-title">🏅 ランキング TOP3</div>
       <div id="rankingList"></div>
     </div>
     
@@ -300,31 +356,48 @@
   <script>
     const el = id => document.getElementById(id);
     let score = 0, level = 1, hp = 3, correctAnswer = 0, playerName = "";
-    const monsters = ["👾", "🐉", "👹", "👺", "🧙‍♂️", "🦄", "🐲", "🦁", "🐯", "🐸", "🦊", "🐺", "🐨", "🐼", "🦘", "🐙"];
+    const monsters = ["👾", "🐉", "👹", "👺", "🧙‍♂️", "🦄", "🐲", "🦁", "🐯", "🐸", "🦊", "🐺", "🐨", "🐼", "🦘", "🐙", "🦋", "🐢", "🦎", "🦕"];
     let collectedMonsters = [];
 
     // ランキングデータの管理
     function getRankings() {
-      const rankings = JSON.parse(localStorage.getItem('mathQuestRankings') || '[]');
-      return rankings.sort((a, b) => b.score - a.score);
+      try {
+        const rankings = JSON.parse(localStorage.getItem('mathQuestRankings') || '[]');
+        return rankings.sort((a, b) => b.score - a.score);
+      } catch (error) {
+        return [];
+      }
     }
 
-    function saveScore(name, score) {
-      const rankings = getRankings();
-      rankings.push({ name, score, date: new Date().toLocaleDateString() });
-      rankings.sort((a, b) => b.score - a.score);
-      // トップ10のみ保存
-      const top10 = rankings.slice(0, 10);
-      localStorage.setItem('mathQuestRankings', JSON.stringify(top10));
-      return top10;
+    function saveScore(name, score, level) {
+      try {
+        const rankings = getRankings();
+        rankings.push({ 
+          name, 
+          score, 
+          level,
+          date: new Date().toLocaleDateString() 
+        });
+        rankings.sort((a, b) => b.score - a.score);
+        // トップ20のみ保存
+        const top20 = rankings.slice(0, 20);
+        localStorage.setItem('mathQuestRankings', JSON.stringify(top20));
+        return top20;
+      } catch (error) {
+        console.error('スコア保存エラー:', error);
+        return [];
+      }
     }
 
     function startGame() {
       playerName = el("playerName").value.trim() || "ななしさん";
       el("startScreen").style.display = "none";
       el("game").style.display = "block";
-      score = 0; level = 1; hp = 3;
-      collectedMonsters = [monsters[0]]; // 最初のモンスターを追加
+      score = 0; 
+      level = 1; 
+      hp = 3;
+      collectedMonsters = []; // 最初は空
+      el("monster").textContent = monsters[0];
       updateLevelDisplay();
       updateCharacterCollection();
       generateQuestion();
@@ -335,6 +408,8 @@
       el("scoreBoard").style.display = "none";
       el("game").style.display = "none";
       el("characterCollection").style.display = "none";
+      // 入力フィールドをクリア
+      el("playerName").value = "";
     }
 
     function createEffect(isLevelUp = false) {
@@ -345,7 +420,7 @@
       document.body.appendChild(fireworks);
       
       const colors = ['#ff0000', '#ff6600', '#ffff00', '#00ff00', '#0066ff', '#6600ff'];
-      const count = isLevelUp ? 20 : 8;
+      const count = isLevelUp ? 25 : 10;
       
       for (let i = 0; i < count; i++) {
         setTimeout(() => {
@@ -357,7 +432,7 @@
           fireworks.appendChild(firework);
           
           setTimeout(() => firework.remove(), isLevelUp ? 3000 : 1500);
-        }, i * (isLevelUp ? 150 : 100));
+        }, i * (isLevelUp ? 120 : 80));
       }
       
       const duration = isLevelUp ? 3000 : 1500;
@@ -367,26 +442,40 @@
       }, duration);
     }
 
+    function showLevelUpMessage(newLevel, newMonster) {
+      const message = document.createElement('div');
+      message.className = 'level-up-message';
+      message.innerHTML = `
+        🎉 レベルアップ！ 🎉<br>
+        レベル ${newLevel}<br>
+        新しいモンスター ${newMonster} をゲット！
+      `;
+      document.body.appendChild(message);
+      
+      setTimeout(() => {
+        message.remove();
+      }, 3000);
+    }
+
     function updateCharacterCollection() {
       const collectionDiv = el("collectedCharacters");
+      const countSpan = el("monsterCount");
+      
       collectionDiv.innerHTML = "";
+      countSpan.textContent = collectedMonsters.length;
       
       collectedMonsters.forEach((monster, index) => {
         const charDiv = document.createElement('div');
         charDiv.className = 'collected-character';
-        charDiv.textContent = monster;
-        charDiv.title = `レベル ${index + 1} でゲット！`;
+        charDiv.textContent = monster.character;
+        charDiv.setAttribute('data-level', monster.level);
+        charDiv.title = `レベル ${monster.level} でゲット！`;
         collectionDiv.appendChild(charDiv);
-        
-        // 新しく追加されたキャラクターにアニメーション
-        if (index === collectedMonsters.length - 1 && collectedMonsters.length > 1) {
-          setTimeout(() => {
-            charDiv.style.animation = 'newCharacterAnimation 2s ease-in-out';
-          }, 100);
-        }
       });
       
-      el("characterCollection").style.display = "block";
+      if (collectedMonsters.length > 0) {
+        el("characterCollection").style.display = "block";
+      }
     }
 
     function generateQuestion() {
@@ -416,6 +505,11 @@
     function submitAnswer() {
       const userAnswer = parseInt(el("answerInput").value);
       
+      if (isNaN(userAnswer)) {
+        alert("数字を入力してください");
+        return;
+      }
+      
       if (userAnswer === correctAnswer) {
         score++;
         createEffect(false);
@@ -423,10 +517,17 @@
         // 5問ごとにレベルアップ
         if (score % 5 === 0) {
           level++;
-          const newMonster = monsters[level - 1] || monsters[monsters.length - 1];
+          const newMonster = monsters[Math.min(level - 1, monsters.length - 1)];
           el("monster").textContent = newMonster;
-          collectedMonsters.push(newMonster);
+          
+          // モンスターをコレクションに追加
+          collectedMonsters.push({
+            character: newMonster,
+            level: level
+          });
+          
           createEffect(true);
+          showLevelUpMessage(level, newMonster);
           updateCharacterCollection();
         }
         
@@ -435,7 +536,7 @@
         setTimeout(generateQuestion, 2000);
       } else {
         // 間違いの場合、HPは減らさずに選択肢を表示
-        el("wrongMessage").textContent = `💥 まちがい！`;
+        el("wrongMessage").textContent = `💥 まちがい！正解は ${correctAnswer} です`;
         el("answerSection").style.display = "none";
         el("wrongSection").style.display = "block";
       }
@@ -444,32 +545,35 @@
     function retry() {
       hp -= 0.5; // ときなおすでHP0.5減らす
       updateLevelDisplay();
+      
+      if (hp <= 0) {
+        el("status").innerHTML = "💀 体力がなくなりました...";
+        setTimeout(showScoreBoard, 1500);
+        return;
+      }
+      
       el("answerSection").style.display = "block";
       el("wrongSection").style.display = "none";
       el("answerInput").focus();
-      
-      // HP0以下でゲーム終了
-      if (hp <= 0) {
-        setTimeout(showScoreBoard, 1000);
-      }
     }
 
     function nextQuestion() {
       hp -= 1; // つぎへでHP1減らす
-      el("status").innerHTML = `正解は ${correctAnswer} でした`;
       updateLevelDisplay();
       
-      // HP0以下でゲーム終了
       if (hp <= 0) {
-        setTimeout(showScoreBoard, 2000);
-      } else {
-        setTimeout(generateQuestion, 2000);
+        el("status").innerHTML = "💀 体力がなくなりました...";
+        setTimeout(showScoreBoard, 1500);
+        return;
       }
+      
+      setTimeout(generateQuestion, 1000);
     }
 
     function updateLevelDisplay() {
       const heartDisplay = hp > 0 ? "❤️".repeat(Math.floor(hp)) + (hp % 1 === 0.5 ? "💔" : "") : "💀";
-      el("levelInfo").innerHTML = `📈 レベル: ${level}（あと ${5 - (score % 5)} 問でレベルアップ）| HP: ${heartDisplay}`;
+      const questionsToLevelUp = 5 - (score % 5);
+      el("levelInfo").innerHTML = `📈 レベル: ${level} | あと ${questionsToLevelUp} 問でレベルアップ | HP: ${heartDisplay}`;
     }
 
     function displayRankings(currentScore) {
@@ -477,26 +581,33 @@
       const rankingList = el("rankingList");
       
       // 現在のプレイヤーの順位を計算
-      let currentRank = 1;
-      for (let i = 0; i < rankings.length; i++) {
-        if (rankings[i].score > currentScore) {
-          currentRank++;
-        } else {
-          break;
-        }
-      }
+      let currentRank = rankings.filter(player => player.score > currentScore).length + 1;
       
-      // トップ3を表示
+      // トップ3を表示（スコアのみ、名前は非表示）
       let rankingHTML = "";
       const top3 = rankings.slice(0, 3);
       
-      top3.forEach((player, index) => {
-        const rankEmoji = index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉";
-        rankingHTML += `<div class="ranking-item">${rankEmoji} ${index + 1}位: ${player.score}点</div>`;
-      });
+      if (top3.length === 0) {
+        rankingHTML = '<div class="ranking-item">まだ記録がありません</div>';
+      } else {
+        top3.forEach((player, index) => {
+          const rankEmoji = index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉";
+          rankingHTML += `
+            <div class="ranking-item">
+              <span>${rankEmoji} ${index + 1}位</span>
+              <span>${player.score}点 (Lv.${player.level || 1})</span>
+            </div>
+          `;
+        });
+      }
       
       // 現在のプレイヤーの順位
-      rankingHTML += `<div class="ranking-item current-rank">🎯 あなたの順位: ${currentRank}位 (${currentScore}点)</div>`;
+      rankingHTML += `
+        <div class="ranking-item current-rank">
+          <span>🎯 あなたの順位: ${currentRank}位</span>
+          <span>${currentScore}点 (Lv.${level})</span>
+        </div>
+      `;
       
       rankingList.innerHTML = rankingHTML;
     }
@@ -506,16 +617,18 @@
       el("characterCollection").style.display = "none";
       el("scoreBoard").style.display = "block";
       el("finalScore").textContent = score;
+      el("finalLevel").textContent = level;
       el("displayName").textContent = playerName;
       
       // スコアを保存してランキングを表示
-      saveScore(playerName, score);
+      saveScore(playerName, score, level);
       displayRankings(score);
       
-      let rankText = score >= 25 ? "🌟 4桁計算マスター！" : 
-                     score >= 15 ? "💡 とてもよくできました！" : 
-                     score >= 5 ? "📘 もう少しがんばろう！" :
-                     "🔰 また挑戦してね！";
+      let rankText = score >= 30 ? "🌟 4桁計算マスター！" : 
+                     score >= 20 ? "💡 とてもよくできました！" : 
+                     score >= 10 ? "📘 なかなかいいですね！" :
+                     score >= 5 ? "🔰 もう少しがんばろう！" :
+                     "💪 また挑戦してね！";
       
       el("rank").textContent = rankText;
     }
@@ -524,6 +637,13 @@
     el("answerInput").addEventListener("keypress", function(event) {
       if (event.key === "Enter") {
         submitAnswer();
+      }
+    });
+
+    // プレイヤー名入力でエンターキーを押した時の処理
+    el("playerName").addEventListener("keypress", function(event) {
+      if (event.key === "Enter") {
+        startGame();
       }
     });
   </script>
